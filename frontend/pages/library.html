@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav"><a href="index.html" class="nav-link">🎮 Cửa hàng</a></div>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <div class="container page">
+        <div class="page-header">
+            <h1 class="page-title">📚 Library của tôi</h1>
+            <p class="page-subtitle">Tất cả game bạn đã sở hữu</p>
+        </div>
+        <div id="library-container">
+            <div class="loading-overlay">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal "Chạy Game" -->
+    <div id="play-modal" class="modal-overlay" style="display:none">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="play-modal-title">Đang khởi động...</h3>
+                <button class="modal-close" onclick="closePlayModal()">✕</button>
+            </div>
+            <div style="text-align:center;padding:20px 0">
+                <div style="font-size:4rem;margin-bottom:16px">🎮</div>
+                <div id="play-modal-body" style="color:var(--text-secondary);margin-bottom:20px"></div>
+                <div
+                    style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;font-size:.85rem;color:var(--text-muted);text-align:left">
+                    <strong style="color:var(--text-secondary)">Thông tin game:</strong><br>
+                    <span id="play-modal-info"></span>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="closePlayModal()">Đóng</button>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="../js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            Auth.requireAuth();
+            renderNavbar();
+            loadLibrary();
+        });
+
+        async function loadLibrary() {
+            const data = await apiCall('/api/library');
+            const container = document.getElementById('library-container');
+
+            if (!data.games || data.games.length === 0) {
+                container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📦</div>
+          <h3>Library trống</h3>
+          <p>Bạn chưa sở hữu game nào. <a href="index.html">Mua game ngay!</a></p>
+        </div>`;
+                return;
+            }
+
+            container.innerHTML = `
+      <p style="color:var(--text-secondary);margin-bottom:20px">${data.games.length} game trong library</p>
+      <div class="library-list">
+        ${data.games.map(g => `
+          <div class="library-card">
+            <img src="${g.cover_image || 'https://picsum.photos/seed/' + g.id + '/160/90'}" alt="${g.title}">
+            <div class="library-info">
+              <div class="library-title">${g.title}</div>
+              <div class="library-genre">${g.genre || 'Game'}</div>
+              <div style="color:var(--text-muted);font-size:.78rem">
+                Mua ngày ${new Date(g.purchased_at).toLocaleDateString('vi-VN')}
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="playGame(${g.id}, '${g.title}', '${g.genre || ''}')">
+              ▶ Chơi
+            </button>
+          </div>`).join('')}
+      </div>`;
+        }
+
+        function playGame(id, title, genre) {
+            document.getElementById('play-modal-title').textContent = '▶ ' + title;
+            document.getElementById('play-modal-body').innerHTML =
+                `<strong style="color:var(--green);font-size:1.1rem">Game đang chạy!</strong><br>
+       <span style="font-size:.9rem">(Demo mode — game thật sẽ khởi động ở đây)</span>`;
+            document.getElementById('play-modal-info').innerHTML =
+                `ID: #${id} &nbsp;|&nbsp; Thể loại: ${genre || 'N/A'}`;
+            document.getElementById('play-modal').style.display = 'flex';
+        }
+
+        function closePlayModal() {
+            document.getElementById('play-modal').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

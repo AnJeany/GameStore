@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết game — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <style>
+        .game-detail-hero {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 40px 0;
+        }
+
+        .game-detail-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 32px;
+            align-items: start;
+        }
+
+        .game-cover {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+        }
+
+        .game-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .game-meta-item {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: .8rem;
+            color: var(--text-secondary);
+        }
+
+        .game-description {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-top: 16px;
+        }
+
+        .purchase-box {
+            position: sticky;
+            top: 80px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+
+        .purchase-price {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--green);
+            margin-bottom: 16px;
+        }
+
+        @media(max-width:768px) {
+            .game-detail-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav"><a href="index.html" class="nav-link">← Cửa hàng</a></div>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <div id="page-container">
+        <div class="loading-overlay" style="height:60vh">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="../js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            renderNavbar();
+            const params = new URLSearchParams(window.location.search);
+            const id = parseInt(params.get('id'));
+            if (!id) { window.location.href = 'index.html'; return; }
+            await loadGame(id);
+        });
+
+        async function loadGame(id) {
+            const data = await apiCall(`/api/games/${id}`);
+            if (!data.success) {
+                document.getElementById('page-container').innerHTML =
+                    '<div class="empty-state" style="padding:80px"><div class="empty-state-icon">😢</div><h3>Game không tồn tại</h3><a href="index.html" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a></div>';
+                return;
+            }
+
+            const g = data.game;
+            document.title = g.title + ' — GameStore';
+
+            const owned = Auth.isLoggedIn() ? await checkOwned(id) : false;
+            const inCart = false; // có thể mở rộng sau
+
+            document.getElementById('page-container').innerHTML = `
+      <section class="game-detail-hero">
+        <div class="container">
+          <div class="game-detail-layout">
+            <div>
+              <img class="game-cover"
+                   src="${g.cover_image || 'https://picsum.photos/seed/' + g.id + '/800/450'}"
+                   alt="${g.title}">
+              <h1 style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;margin-top:20px">${g.title}</h1>
+              <div class="game-meta">
+                <span class="game-meta-item">🎮 ${g.genre || 'Game'}</span>
+                <span class="game-meta-item">👨‍💻 ${g.dev_name}</span>
+                <span class="game-meta-item">📅 ${new Date(g.created_at).toLocaleDateString('vi-VN')}</span>
+              </div>
+              <p class="game-description">${g.description || 'Chưa có mô tả.'}</p>
+            </div>
+
+            <div class="purchase-box">
+              <div class="purchase-price">
+                ${g.price == 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(g.price)}
+              </div>
+              ${owned
+                    ? `<div class="alert alert-success">✓ Bạn đã sở hữu game này</div>
+                   <a href="library.html" class="btn btn-primary btn-block">▶ Chơi ngay</a>`
+                    : `<button class="btn btn-primary btn-block btn-lg" id="btn-add-cart" onclick="addToCart(${g.id})">
+                     🛒 Thêm vào giỏ hàng
+                   </button>
+                   <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="quickBuy(${g.id})">
+                     ⚡ Mua ngay
+                   </button>`
+                }
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)">
+                💳 Thanh toán demo &nbsp;|&nbsp; 🔒 Bảo mật JWT
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>`;
+        }
+
+        async function checkOwned(gameId) {
+            if (!Auth.isLoggedIn()) return false;
+            const data = await apiCall('/api/library');
+            return data.games?.some(g => g.id === gameId) || false;
+        }
+
+        async function addToCart(gameId) {
+            if (!Auth.isLoggedIn()) {
+                showToast('Vui lòng đăng nhập', 'error');
+                setTimeout(() => window.location.href = 'login.html', 1000);
+                return;
+            }
+            const btn = document.getElementById('btn-add-cart');
+            btn.disabled = true;
+            const data = await apiCall('/api/cart/add', { method: 'POST', body: JSON.stringify({ game_id: gameId }) });
+            btn.disabled = false;
+            if (data.success) {
+                showToast('Đã thêm vào giỏ hàng!', 'success');
+                updateCartBadge();
+            } else {
+                showToast(data.message, 'error');
+            }
+        }
+
+        async function quickBuy(gameId) {
+            await addToCart(gameId);
+            setTimeout(() => window.location.href = 'cart.html', 600);
+        }
+    </script>
+</body>
+
+</html>

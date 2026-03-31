@@ -1,0 +1,29 @@
+# Các thư viện được cài qua Composer (Rất nặng, không nên đưa lên)
+/vendor/
+
+# Các thư viện Frontend (Nếu bạn có dùng npm/nodejs)
+/node_modules/
+
+# FILE QUAN TRỌNG NHẤT: Chứa mật khẩu database, app key
+.env
+.env.backup
+.env.production
+
+# Các file tạm của hệ thống và IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Các file log và cache
+/storage/*.log
+/bootstrap/cache/
+npm-debug.log*
+yarn-error.log*
+
+# File hệ thống của Windows/Mac
+Thumbs.db
+.DS_Store

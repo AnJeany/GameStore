@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameStore — Cửa hàng game</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav" id="navbar-nav-links">
+            <a href="index.html" class="nav-link active">🎮 Cửa hàng</a>
+        </div>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Kho game <em>khổng lồ</em><br>trong tầm tay bạn</h1>
+            <p class="hero-subtitle">Hàng nghìn tựa game từ các nhà phát triển độc lập. Mua một lần, chơi mãi mãi.</p>
+            <a href="#store-section" class="btn btn-primary btn-lg">🎮 Khám phá ngay</a>
+        </div>
+    </section>
+
+    <!-- STORE -->
+    <div class="container page" id="store-section">
+        <!-- Search & Filter -->
+        <div class="search-bar">
+            <input type="text" id="search-input" class="form-control" placeholder="🔍 Tìm kiếm game..."
+                oninput="debouncedSearch()">
+            <select id="genre-filter" class="form-control" style="max-width:180px" onchange="loadGames(1)">
+                <option value="">Tất cả thể loại</option>
+                <option value="RPG">RPG</option>
+                <option value="Action">Action</option>
+                <option value="Strategy">Strategy</option>
+                <option value="Horror">Horror</option>
+                <option value="Racing">Racing</option>
+                <option value="Fighting">Fighting</option>
+                <option value="Adventure">Adventure</option>
+            </select>
+        </div>
+
+        <!-- Games Grid -->
+        <div id="games-container">
+            <div class="loading-overlay">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container"></div>
+
+    <script src="../js/api.js"></script>
+    <script>
+        let currentPage = 1;
+        let searchTimeout;
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            renderNavbar();
+            loadGames(1);
+        });
+
+        // Debounce search input
+        function debouncedSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadGames(1), 400);
+        }
+
+        async function loadGames(page = 1) {
+            currentPage = page;
+            const search = document.getElementById('search-input').value.trim();
+            const genre = document.getElementById('genre-filter').value;
+
+            const params = new URLSearchParams({ page });
+            if (search) params.append('search', search);
+            if (genre) params.append('genre', genre);
+
+            document.getElementById('games-container').innerHTML =
+                '<div class="loading-overlay"><div class="spinner"></div></div>';
+
+            const data = await apiCall(`/api/games?${params}`);
+
+            if (!data.success) {
+                document.getElementById('games-container').innerHTML =
+                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Lỗi tải dữ liệu</h3></div>';
+                return;
+            }
+
+            renderGames(data.games);
+            renderPagination(data.pagination);
+        }
+
+        function renderGames(games) {
+            const container = document.getElementById('games-container');
+            if (!games.length) {
+                container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🎮</div>
+          <h3>Không tìm thấy game nào</h3>
+          <p>Thử thay đổi từ khóa tìm kiếm</p>
+        </div>`;
+                return;
+            }
+
+            container.innerHTML = `<div class="games-grid">${games.map(gameCard).join('')}</div>`;
+        }
+
+        function gameCard(g) {
+            const price = g.price == 0
+                ? '<span class="game-price free">Miễn phí</span>'
+                : `<span class="game-price">${formatPrice(g.price)}</span>`;
+
+            return `
+      <div class="card game-card" onclick="viewGame(${g.id})">
+        <img class="game-card-img"
+             src="${g.cover_image || 'https://picsum.photos/seed/' + g.id + '/400/225'}"
+             alt="${g.title}" loading="lazy">
+        <div class="game-card-body">
+          <div class="game-card-genre">${g.genre || 'Game'}</div>
+          <div class="game-card-title">${g.title}</div>
+          <div class="game-card-footer">
+            ${price}
+            <button class="btn btn-primary btn-sm"
+                    onclick="event.stopPropagation(); addToCart(${g.id}, this)">
+              + Giỏ hàng
+            </button>
+          </div>
+        </div>
+      </div>`;
+        }
+
+        function renderPagination(p) {
+            const container = document.getElementById('pagination');
+            if (p.last_page <= 1) { container.innerHTML = ''; return; }
+
+            let html = '';
+            for (let i = 1; i <= p.last_page; i++) {
+                html += `<button class="page-btn ${i === p.current_page ? 'active' : ''}"
+                       onclick="loadGames(${i})">${i}</button>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function viewGame(id) {
+            window.location.href = `game-detail.html?id=${id}`;
+        }
+
+        async function addToCart(gameId, btn) {
+            if (!Auth.isLoggedIn()) {
+                showToast('Vui lòng đăng nhập để thêm vào giỏ hàng', 'error');
+                setTimeout(() => window.location.href = 'login.html', 1200);
+                return;
+            }
+
+            btn.disabled = true;
+            const data = await apiCall('/api/cart/add', {
+                method: 'POST',
+                body: JSON.stringify({ game_id: gameId })
+            });
+            btn.disabled = false;
+
+            if (data.success) {
+                showToast('Đã thêm vào giỏ hàng!', 'success');
+                updateCartBadge();
+            } else {
+                showToast(data.message, 'error');
+            }
+        }
+
+        function formatPrice(amount) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        }
+    </script>
+</body>
+
+</html>

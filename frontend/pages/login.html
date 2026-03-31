@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-box">
+            <div class="auth-logo">GAME<span>STORE</span></div>
+            <h2 class="auth-title">Đăng nhập</h2>
+            <div id="alert-box"></div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="email" class="form-control" placeholder="you@example.com" autofocus>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mật khẩu</label>
+                <input type="password" id="password" class="form-control" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary btn-block btn-lg" id="btn-login" onclick="handleLogin()">
+                Đăng nhập
+            </button>
+            <div class="auth-footer">
+                Chưa có tài khoản? <a href="register.html">Đăng ký ngay</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script>
+        // Nếu đã đăng nhập thì redirect luôn
+        if (Auth.isLoggedIn()) window.location.href = 'index.html';
+
+        // Cho phép nhấn Enter để login
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') handleLogin();
+        });
+
+        async function handleLogin() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('btn-login');
+            const alertBox = document.getElementById('alert-box');
+
+            alertBox.innerHTML = '';
+
+            if (!email || !password) {
+                alertBox.innerHTML = '<div class="alert alert-error">Vui lòng nhập đầy đủ thông tin</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Đang đăng nhập...';
+
+            const data = await apiCall('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+
+            btn.disabled = false;
+            btn.textContent = 'Đăng nhập';
+
+            if (data.success) {
+                Auth.save(data.token, data.user);
+                showToast('Chào mừng trở lại, ' + data.user.username + '!', 'success');
+                setTimeout(() => window.location.href = 'index.html', 800);
+            } else {
+                alertBox.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+            }
+        }
+    </script>
+</body>
+
+</html>

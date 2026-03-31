@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Dashboard — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-section">Developer</div>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item"><a href="#" class="active" onclick="showSection('my-games')">🎮 Game của
+                        tôi</a></li>
+                <li class="sidebar-item"><a href="#" onclick="showSection('upload-game')">➕ Đăng game mới</a></li>
+                <li class="sidebar-item"><a href="index.html">🛒 Cửa hàng</a></li>
+                <li class="sidebar-item"><a href="library.html">📚 Library</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Section: My Games -->
+            <section id="section-my-games">
+                <div class="page-header">
+                    <h1 class="page-title">🎮 Game của tôi</h1>
+                    <p class="page-subtitle">Quản lý các game bạn đã đăng</p>
+                </div>
+                <div id="dev-games-container">
+                    <div class="loading-overlay">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Upload Game -->
+            <section id="section-upload-game" style="display:none">
+                <div class="page-header">
+                    <h1 class="page-title">➕ Đăng game mới</h1>
+                    <p class="page-subtitle">Game sẽ được admin duyệt trước khi hiển thị</p>
+                </div>
+                <div class="card card-body" style="max-width:600px">
+                    <div id="upload-alert"></div>
+                    <div class="form-group">
+                        <label class="form-label">Tên game *</label>
+                        <input type="text" id="game-title" class="form-control" placeholder="VD: Cyber Odyssey 2">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Thể loại</label>
+                        <select id="game-genre" class="form-control">
+                            <option value="">-- Chọn thể loại --</option>
+                            <option>RPG</option>
+                            <option>Action</option>
+                            <option>Strategy</option>
+                            <option>Horror</option>
+                            <option>Racing</option>
+                            <option>Fighting</option>
+                            <option>Adventure</option>
+                            <option>Puzzle</option>
+                            <option>Sports</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Giá (VND) — để 0 nếu miễn phí</label>
+                        <input type="number" id="game-price" class="form-control" placeholder="99000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">URL ảnh bìa</label>
+                        <input type="text" id="game-cover" class="form-control"
+                            placeholder="https://example.com/cover.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mô tả game</label>
+                        <textarea id="game-desc" class="form-control" rows="4"
+                            placeholder="Mô tả ngắn về game của bạn..."></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-lg" onclick="uploadGame()">📤 Gửi duyệt</button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="../js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!Auth.requireRole('dev', 'admin')) return;
+            renderNavbar();
+            loadDevGames();
+        });
+
+        function showSection(name) {
+            document.getElementById('section-my-games').style.display = name === 'my-games' ? 'block' : 'none';
+            document.getElementById('section-upload-game').style.display = name === 'upload-game' ? 'block' : 'none';
+            document.querySelectorAll('.sidebar-item a').forEach(a => a.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        async function loadDevGames() {
+            const data = await apiCall('/api/dev/games');
+            const container = document.getElementById('dev-games-container');
+
+            if (!data.games || data.games.length === 0) {
+                container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🎮</div>
+          <h3>Bạn chưa đăng game nào</h3>
+          <button class="btn btn-primary" onclick="showSection('upload-game')">➕ Đăng game đầu tiên</button>
+        </div>`;
+                return;
+            }
+
+            container.innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Game</th><th>Thể loại</th><th>Giá</th><th>Trạng thái</th><th>Ngày đăng</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.games.map(g => `
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <img src="${g.cover_image || 'https://picsum.photos/seed/' + g.id + '/80/45'}"
+                         style="width:80px;height:45px;object-fit:cover;border-radius:4px">
+                    <strong>${g.title}</strong>
+                  </div>
+                </td>
+                <td>${g.genre || '—'}</td>
+                <td style="color:var(--green);font-weight:700">
+                  ${g.price == 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(g.price)}
+                </td>
+                <td><span class="badge badge-${g.status}">${statusLabel(g.status)}</span></td>
+                <td>${new Date(g.created_at).toLocaleDateString('vi-VN')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+        }
+
+        async function uploadGame() {
+            const title = document.getElementById('game-title').value.trim();
+            const genre = document.getElementById('game-genre').value;
+            const price = parseFloat(document.getElementById('game-price').value) || 0;
+            const cover = document.getElementById('game-cover').value.trim();
+            const desc = document.getElementById('game-desc').value.trim();
+            const alertBox = document.getElementById('upload-alert');
+
+            alertBox.innerHTML = '';
+            if (!title) { alertBox.innerHTML = '<div class="alert alert-error">Tên game không được để trống</div>'; return; }
+
+            const data = await apiCall('/api/dev/games', {
+                method: 'POST',
+                body: JSON.stringify({ title, genre, price, cover_image: cover, description: desc })
+            });
+
+            if (data.success) {
+                alertBox.innerHTML = '<div class="alert alert-success">✓ Game đã gửi duyệt thành công!</div>';
+                document.getElementById('game-title').value = '';
+                document.getElementById('game-price').value = '';
+                document.getElementById('game-cover').value = '';
+                document.getElementById('game-desc').value = '';
+                showToast('Game đã gửi duyệt!', 'success');
+            } else {
+                alertBox.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+            }
+        }
+
+        function statusLabel(s) {
+            return { approved: '✓ Đã duyệt', pending: '⏳ Chờ duyệt', rejected: '✕ Từ chối' }[s] || s;
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">Admin Panel</div>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item"><a href="#" class="active" onclick="showSection('overview',this)">📊 Tổng
+                        quan</a></li>
+                <li class="sidebar-item"><a href="#" onclick="showSection('pending-games',this)">⏳ Duyệt game</a></li>
+                <li class="sidebar-item"><a href="#" onclick="showSection('users',this)">👥 Quản lý user</a></li>
+                <li class="sidebar-item"><a href="index.html">🛒 Cửa hàng</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+
+            <!-- OVERVIEW -->
+            <section id="section-overview">
+                <div class="page-header">
+                    <h1 class="page-title">📊 Tổng quan</h1>
+                </div>
+                <div id="stats-container">
+                    <div class="loading-overlay">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PENDING GAMES -->
+            <section id="section-pending-games" style="display:none">
+                <div class="page-header">
+                    <h1 class="page-title">⏳ Game chờ duyệt</h1>
+                    <p class="page-subtitle">Xem xét và phê duyệt game từ developers</p>
+                </div>
+                <div id="pending-container">
+                    <div class="loading-overlay">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- USERS -->
+            <section id="section-users" style="display:none">
+                <div class="page-header">
+                    <h1 class="page-title">👥 Quản lý User</h1>
+                    <p class="page-subtitle">Xem, khóa/mở và phân quyền tài khoản</p>
+                </div>
+                <div id="users-container">
+                    <div class="loading-overlay">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="../js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!Auth.requireRole('admin')) return;
+            renderNavbar();
+            loadStats();
+        });
+
+        function showSection(name, el) {
+            ['overview', 'pending-games', 'users'].forEach(s => {
+                document.getElementById('section-' + s).style.display = s === name ? 'block' : 'none';
+            });
+            document.querySelectorAll('.sidebar-item a').forEach(a => a.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            if (name === 'pending-games') loadPendingGames();
+            if (name === 'users') loadUsers();
+        }
+
+        // ---- STATS ----
+        async function loadStats() {
+            const data = await apiCall('/api/admin/stats');
+            if (!data.success) return;
+            const s = data.stats;
+
+            document.getElementById('stats-container').innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${s.users}</div>
+          <div class="stat-label">👥 Tổng người dùng</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${s.games.approved}</div>
+          <div class="stat-label">✅ Game đã duyệt</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--gold)">${s.games.pending}</div>
+          <div class="stat-label">⏳ Chờ duyệt</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--green)">
+            ${s.revenue.total_revenue
+                    ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(s.revenue.total_revenue)
+                    : '0₫'}
+          </div>
+          <div class="stat-label">💰 Doanh thu (demo)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${s.revenue.total_orders || 0}</div>
+          <div class="stat-label">📦 Tổng đơn hàng</div>
+        </div>
+      </div>
+
+      <h3 style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;margin-bottom:16px">
+        🕒 Đơn hàng gần đây
+      </h3>
+      ${s.recent_orders.length ? `
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Đơn #</th><th>Người mua</th><th>Tổng tiền</th><th>Ngày</th></tr></thead>
+              <tbody>
+                ${s.recent_orders.map(o => `
+                  <tr>
+                    <td>#${o.id}</td>
+                    <td>${o.username}</td>
+                    <td style="color:var(--green);font-weight:700">
+                      ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.total_amount)}
+                    </td>
+                    <td>${new Date(o.created_at).toLocaleDateString('vi-VN')}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : '<p style="color:var(--text-muted)">Chưa có đơn hàng nào.</p>'}`;
+        }
+
+        // ---- PENDING GAMES ----
+        async function loadPendingGames() {
+            const data = await apiCall('/api/admin/games/pending');
+            const c = document.getElementById('pending-container');
+
+            if (!data.games || !data.games.length) {
+                c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✅</div>
+        <h3>Không có game nào chờ duyệt</h3></div>`;
+                return;
+            }
+
+            c.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px">
+      ${data.games.map(g => `
+        <div class="card card-body" style="display:flex;gap:16px;align-items:center">
+          <img src="${g.cover_image || 'https://picsum.photos/seed/' + g.id + '/120/68'}"
+               style="width:120px;height:68px;object-fit:cover;border-radius:var(--radius);flex-shrink:0">
+          <div style="flex:1">
+            <div style="font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700">${g.title}</div>
+            <div style="font-size:.8rem;color:var(--text-muted);margin:4px 0">
+              Dev: <strong>${g.dev_name}</strong> &nbsp;|&nbsp; ${g.genre || 'N/A'} &nbsp;|&nbsp;
+              ${g.price == 0 ? 'Miễn phí' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(g.price)}
+            </div>
+            <div style="color:var(--text-secondary);font-size:.85rem">${g.description || 'Không có mô tả'}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+            <button class="btn btn-success btn-sm" onclick="reviewGame(${g.id},'approve',this)">✓ Duyệt</button>
+            <button class="btn btn-danger btn-sm"  onclick="reviewGame(${g.id},'reject',this)">✕ Từ chối</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+        }
+
+        async function reviewGame(id, action, btn) {
+            btn.disabled = true;
+            const endpoint = `/api/admin/games/${id}/${action}`;
+            const data = await apiCall(endpoint, { method: 'PUT' });
+            if (data.success) {
+                showToast(data.message, 'success');
+                btn.closest('.card').remove();
+            } else {
+                showToast(data.message, 'error');
+                btn.disabled = false;
+            }
+        }
+
+        // ---- USERS ----
+        async function loadUsers() {
+            const data = await apiCall('/api/admin/users');
+            const c = document.getElementById('users-container');
+
+            c.innerHTML = `
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>#</th><th>Username</th><th>Email</th><th>Role</th><th>Trạng thái</th><th>Ngày tạo</th><th>Hành động</th></tr></thead>
+            <tbody>
+              ${data.users.map(u => `
+                <tr id="user-row-${u.id}">
+                  <td>${u.id}</td>
+                  <td><strong>${u.username}</strong></td>
+                  <td style="color:var(--text-secondary)">${u.email}</td>
+                  <td>
+                    <select class="form-control" style="width:auto;padding:4px 8px;font-size:.78rem"
+                            onchange="changeRole(${u.id}, this.value)"
+                            ${u.role === 'admin' ? 'disabled' : ''}>
+                      <option value="user"  ${u.role === 'user' ? 'selected' : ''}>User</option>
+                      <option value="dev"   ${u.role === 'dev' ? 'selected' : ''}>Dev</option>
+                      <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                  </td>
+                  <td>
+                    <span class="badge ${u.is_active ? 'badge-approved' : 'badge-rejected'}">
+                      ${u.is_active ? 'Hoạt động' : 'Đã khóa'}
+                    </span>
+                  </td>
+                  <td>${new Date(u.created_at).toLocaleDateString('vi-VN')}</td>
+                  <td>
+                    ${u.role !== 'admin' ? `
+                      <button class="btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}"
+                              onclick="toggleUser(${u.id}, this)">
+                        ${u.is_active ? '🔒 Khóa' : '🔓 Mở'}
+                      </button>` : '—'}
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+        }
+
+        async function toggleUser(id, btn) {
+            btn.disabled = true;
+            const data = await apiCall(`/api/admin/users/${id}/toggle`, { method: 'PUT' });
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadUsers(); // Reload để cập nhật UI
+            } else {
+                showToast(data.message, 'error');
+                btn.disabled = false;
+            }
+        }
+
+        async function changeRole(id, role) {
+            const data = await apiCall(`/api/admin/users/${id}/role`, {
+                method: 'PUT', body: JSON.stringify({ role })
+            });
+            showToast(data.message, data.success ? 'success' : 'error');
+        }
+    </script>
+</body>
+
+</html>

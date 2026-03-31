@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giỏ hàng — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="navbar-brand">GAME<span>STORE</span></a>
+        <div class="navbar-nav"><a href="index.html" class="nav-link">← Tiếp tục mua</a></div>
+        <div class="navbar-nav" id="navbar-actions"></div>
+    </nav>
+
+    <div class="container page">
+        <div class="page-header">
+            <h1 class="page-title">🛒 Giỏ hàng</h1>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start" id="cart-layout">
+            <div id="cart-items-container">
+                <div class="loading-overlay">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+            <div class="card card-body" id="cart-summary" style="display:none">
+                <h3 class="card-title">Tổng đơn hàng</h3>
+                <div style="margin:16px 0;border-top:1px solid var(--border);padding-top:16px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--text-secondary)">Số lượng</span>
+                        <span id="summary-count">0 game</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700">
+                        <span>Tổng cộng</span>
+                        <span id="summary-total" style="color:var(--green)">0₫</span>
+                    </div>
+                </div>
+                <button class="btn btn-success btn-block btn-lg" id="btn-checkout" onclick="checkout()">
+                    💳 Thanh toán (Demo)
+                </button>
+                <p style="text-align:center;font-size:.75rem;color:var(--text-muted);margin-top:10px">
+                    Đây là môi trường demo, không có giao dịch thực
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="../js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            Auth.requireAuth();
+            renderNavbar();
+            loadCart();
+        });
+
+        async function loadCart() {
+            const data = await apiCall('/api/cart');
+            const container = document.getElementById('cart-items-container');
+            const summary = document.getElementById('cart-summary');
+
+            if (!data.items || data.items.length === 0) {
+                container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🛒</div>
+          <h3>Giỏ hàng trống</h3>
+          <p>Thêm game từ <a href="index.html">cửa hàng</a> nhé!</p>
+        </div>`;
+                return;
+            }
+
+            summary.style.display = 'block';
+            document.getElementById('summary-count').textContent = data.items.length + ' game';
+            document.getElementById('summary-total').textContent = formatPrice(data.total);
+
+            container.innerHTML = data.items.map(item => `
+      <div class="library-card" style="margin-bottom:12px" id="cart-item-${item.id}">
+        <img src="${item.cover_image || 'https://picsum.photos/seed/' + item.id + '/160/90'}" alt="${item.title}">
+        <div class="library-info">
+          <div class="library-title">${item.title}</div>
+          <div class="library-genre">${item.genre || 'Game'}</div>
+          <div style="color:var(--green);font-weight:700">${formatPrice(item.price)}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="removeItem(${item.id})">✕ Xóa</button>
+      </div>`).join('');
+        }
+
+        async function removeItem(gameId) {
+            await apiCall('/api/cart/remove', { method: 'DELETE', body: JSON.stringify({ game_id: gameId }) });
+            showToast('Đã xóa khỏi giỏ hàng', 'info');
+            loadCart();
+            updateCartBadge();
+        }
+
+        async function checkout() {
+            const btn = document.getElementById('btn-checkout');
+            btn.disabled = true; btn.textContent = 'Đang xử lý...';
+            const data = await apiCall('/api/cart/checkout', { method: 'POST' });
+            btn.disabled = false; btn.textContent = '💳 Thanh toán (Demo)';
+
+            if (data.success) {
+                showToast(`Thanh toán thành công! ${data.items} game đã vào Library 🎉`, 'success');
+                setTimeout(() => window.location.href = 'library.html', 1500);
+            } else {
+                showToast(data.message, 'error');
+            }
+        }
+
+        function formatPrice(a) {
+            if (a === 0) return 'Miễn phí';
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(a);
+        }
+    </script>
+</body>
+
+</html>

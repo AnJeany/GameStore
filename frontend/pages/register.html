@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký — GameStore</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-box">
+            <div class="auth-logo">GAME<span>STORE</span></div>
+            <h2 class="auth-title">Tạo tài khoản</h2>
+            <div id="alert-box"></div>
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" id="username" class="form-control" placeholder="gamer123">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="email" class="form-control" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mật khẩu</label>
+                <input type="password" id="password" class="form-control" placeholder="Tối thiểu 6 ký tự">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Loại tài khoản</label>
+                <select id="role" class="form-control">
+                    <option value="user">👤 User — Mua và chơi game</option>
+                    <option value="dev">👨‍💻 Developer — Đăng bán game</option>
+                </select>
+            </div>
+            <button class="btn btn-primary btn-block btn-lg" id="btn-register" onclick="handleRegister()">
+                Tạo tài khoản
+            </button>
+            <div class="auth-footer">
+                Đã có tài khoản? <a href="login.html">Đăng nhập</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script>
+        if (Auth.isLoggedIn()) window.location.href = 'index.html';
+
+        async function handleRegister() {
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            const btn = document.getElementById('btn-register');
+            const alertBox = document.getElementById('alert-box');
+
+            alertBox.innerHTML = '';
+
+            if (!username || !email || !password) {
+                alertBox.innerHTML = '<div class="alert alert-error">Vui lòng điền đầy đủ thông tin</div>';
+                return;
+            }
+
+            btn.disabled = true; btn.textContent = 'Đang tạo tài khoản...';
+
+            const data = await apiCall('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({ username, email, password, role })
+            });
+
+            btn.disabled = false; btn.textContent = 'Tạo tài khoản';
+
+            if (data.success) {
+                Auth.save(data.token, data.user);
+                showToast('Đăng ký thành công!', 'success');
+                setTimeout(() => window.location.href = 'index.html', 800);
+            } else {
+                alertBox.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+            }
+        }
+    </script>
+</body>
+
+</html>
