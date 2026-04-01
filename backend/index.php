@@ -35,6 +35,7 @@ $GLOBALS['db'] = $db;
 $requestUri    = $_SERVER['REQUEST_URI'];
 $scriptName    = dirname($_SERVER['SCRIPT_NAME']);
 $path          = str_replace($scriptName, '', parse_url($requestUri, PHP_URL_PATH));
+$path          = str_replace('/index.php', '', $path);
 $path          = '/' . trim($path, '/');
 $method        = $_SERVER['REQUEST_METHOD'];
 
